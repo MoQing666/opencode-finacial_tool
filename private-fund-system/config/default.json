@@ -1,0 +1,35 @@
+{
+  "name": "private-fund-system",
+  "version": "1.0.0",
+  "description": "私募基金管理系统配置文件",
+  "server": {
+    "port": 3000,
+    "host": "localhost"
+  },
+  "database": {
+    "host": "localhost",
+    "port": 5432,
+    "name": "private_fund",
+    "user": "postgres",
+    "password": "postgres"
+  },
+  "wind": {
+    "apiKey": "",
+    "apiSecret": "",
+    "restUrl": "https://api.wind.com.cn",
+    "wsUrl": "wss://ws.wind.com.cn"
+  },
+  "llama": {
+    "modelPath": "./models/llama-2-7b-chat.Q4_K_M.gguf",
+    "contextSize": 4096,
+    "gpuLayers": 0
+  },
+  "auth": {
+    "jwtSecret": "private-fund-system-secret-key-2024",
+    "jwtExpiresIn": "24h"
+  },
+  "logging": {
+    "level": "info",
+    "dir": "./logs"
+  }
+}

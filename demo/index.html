@@ -1,0 +1,961 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>私募基金管理系统 - 演示版</title>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css">
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <script src="https://unpkg.com/echarts@5/dist/echarts.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Microsoft YaHei', sans-serif; }
+        .login-container {
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+        .login-card {
+            width: 420px;
+            padding: 40px;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .login-header { text-align: center; margin-bottom: 30px; }
+        .login-header h1 { font-size: 28px; color: #303133; }
+        .login-header p { color: #909399; margin-top: 8px; }
+        .login-btn { width: 100%; height: 44px; font-size: 16px; }
+        .layout-container { height: 100vh; }
+        .aside { background: #304156; transition: width 0.3s; }
+        .logo {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 18px;
+            font-weight: bold;
+            border-bottom: 1px solid #3a4a5b;
+        }
+        .header {
+            background: #fff;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            box-shadow: 0 1px 4px rgba(0,21,41,0.08);
+            padding: 0 20px;
+        }
+        .header-left { display: flex; align-items: center; gap: 16px; }
+        .header-right { display: flex; align-items: center; gap: 16px; }
+        .user-info { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .main { background: #f5f7fa; padding: 20px; overflow-y: auto; }
+        .stat-cards { margin-bottom: 20px; }
+        .stat-card .el-card__body { display: flex; align-items: center; gap: 16px; }
+        .stat-icon {
+            width: 64px; height: 64px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 32px;
+        }
+        .stat-value { font-size: 28px; font-weight: bold; color: #303133; }
+        .stat-label { font-size: 14px; color: #909399; }
+        .chart-container { height: 300px; }
+        .chart-row { margin-bottom: 20px; }
+        .card-header { display: flex; align-items: center; justify-content: space-between; }
+        .filter-bar { display: flex; gap: 12px; margin-bottom: 20px; }
+        .up { color: #f56c6c; }
+        .down { color: #67c23a; }
+        .chat-messages {
+            height: 400px;
+            overflow-y: auto;
+            padding: 20px;
+            background: #f9f9f9;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .message { display: flex; gap: 12px; margin-bottom: 16px; }
+        .message.user { flex-direction: row-reverse; }
+        .message-content { max-width: 70%; }
+        .message-text {
+            padding: 12px 16px;
+            border-radius: 8px;
+            line-height: 1.6;
+        }
+        .message.user .message-text { background: #409eff; color: #fff; }
+        .message.assistant .message-text { background: #fff; border: 1px solid #ebeef5; }
+        .message-time { font-size: 12px; color: #909399; margin-top: 4px; }
+        .market-item {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #ebeef5;
+        }
+        .market-item:last-child { border-bottom: none; }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <!-- 登录页面 -->
+        <div v-if="!isLoggedIn" class="login-container">
+            <div class="login-card">
+                <div class="login-header">
+                    <h1>私募基金管理系统</h1>
+                    <p>投前投后市场信息一体化平台</p>
+                </div>
+                <el-form :model="loginForm" @submit.prevent="handleLogin">
+                    <el-form-item>
+                        <el-input v-model="loginForm.username" placeholder="请输入用户名" prefix-icon="User" size="large" />
+                    </el-form-item>
+                    <el-form-item>
+                        <el-input v-model="loginForm.password" type="password" placeholder="请输入密码" prefix-icon="Lock" size="large" show-password />
+                    </el-form-item>
+                    <el-form-item>
+                        <el-button type="primary" size="large" class="login-btn" @click="handleLogin" :loading="loginLoading">
+                            登录
+                        </el-button>
+                    </el-form-item>
+                    <div style="text-align: center; color: #909399; font-size: 12px;">
+                        默认账户: admin / admin123
+                    </div>
+                </el-form>
+            </div>
+        </div>
+
+        <!-- 主界面 -->
+        <el-container v-else class="layout-container">
+            <el-aside :width="isCollapse ? '64px' : '220px'" class="aside">
+                <div class="logo">
+                    <span v-show="!isCollapse">私募基金管理系统</span>
+                    <span v-show="isCollapse">PF</span>
+                </div>
+                <el-menu
+                    :default-active="activeMenu"
+                    :collapse="isCollapse"
+                    background-color="#304156"
+                    text-color="#bfcbd9"
+                    active-text-color="#409eff"
+                    @select="handleMenuSelect"
+                >
+                    <el-menu-item index="dashboard">
+                        <el-icon><DataBoard /></el-icon>
+                        <template #title>数据大屏</template>
+                    </el-menu-item>
+                    <el-menu-item index="projects">
+                        <el-icon><Folder /></el-icon>
+                        <template #title>项目管理</template>
+                    </el-menu-item>
+                    <el-menu-item index="pre-investment">
+                        <el-icon><Document /></el-icon>
+                        <template #title>投前管理</template>
+                    </el-menu-item>
+                    <el-menu-item index="post-investment">
+                        <el-icon><TrendCharts /></el-icon>
+                        <template #title>投后管理</template>
+                    </el-menu-item>
+                    <el-menu-item index="market">
+                        <el-icon><Market /></el-icon>
+                        <template #title>市场信息</template>
+                    </el-menu-item>
+                    <el-menu-item index="wind-data">
+                        <el-icon><DataLine /></el-icon>
+                        <template #title>Wind数据</template>
+                    </el-menu-item>
+                    <el-menu-item index="ai-assistant">
+                        <el-icon><ChatDotRound /></el-icon>
+                        <template #title>AI助手</template>
+                    </el-menu-item>
+                    <el-menu-item index="users">
+                        <el-icon><User /></el-icon>
+                        <template #title>用户管理</template>
+                    </el-menu-item>
+                </el-menu>
+            </el-aside>
+            
+            <el-container>
+                <el-header class="header">
+                    <div class="header-left">
+                        <el-icon style="cursor: pointer; font-size: 20px;" @click="isCollapse = !isCollapse">
+                            <Fold v-if="!isCollapse" /><Expand v-else />
+                        </el-icon>
+                        <el-breadcrumb separator="/">
+                            <el-breadcrumb-item>首页</el-breadcrumb-item>
+                            <el-breadcrumb-item>{{ currentPageTitle }}</el-breadcrumb-item>
+                        </el-breadcrumb>
+                    </div>
+                    <div class="header-right">
+                        <el-badge :value="3" :max="99">
+                            <el-icon style="font-size: 20px; cursor: pointer;"><Bell /></el-icon>
+                        </el-badge>
+                        <el-dropdown @command="handleCommand">
+                            <span class="user-info">
+                                <el-avatar :size="32" icon="UserFilled" />
+                                <span>{{ userName }}</span>
+                            </span>
+                            <template #dropdown>
+                                <el-dropdown-menu>
+                                    <el-dropdown-item command="profile">个人中心</el-dropdown-item>
+                                    <el-dropdown-item command="settings">系统设置</el-dropdown-item>
+                                    <el-dropdown-item divided command="logout">退出登录</el-dropdown-item>
+                                </el-dropdown-menu>
+                            </template>
+                        </el-dropdown>
+                    </div>
+                </el-header>
+                
+                <el-main class="main">
+                    <!-- 数据大屏 -->
+                    <div v-if="activeMenu === 'dashboard'">
+                        <el-row :gutter="20" class="stat-cards">
+                            <el-col :span="6">
+                                <el-card shadow="hover">
+                                    <div style="display: flex; align-items: center; gap: 16px;">
+                                        <div class="stat-icon" style="background: #409eff;">📁</div>
+                                        <div>
+                                            <div class="stat-value">156</div>
+                                            <div class="stat-label">项目总数</div>
+                                        </div>
+                                    </div>
+                                </el-card>
+                            </el-col>
+                            <el-col :span="6">
+                                <el-card shadow="hover">
+                                    <div style="display: flex; align-items: center; gap: 16px;">
+                                        <div class="stat-icon" style="background: #67c23a;">📈</div>
+                                        <div>
+                                            <div class="stat-value">89</div>
+                                            <div class="stat-label">活跃项目</div>
+                                        </div>
+                                    </div>
+                                </el-card>
+                            </el-col>
+                            <el-col :span="6">
+                                <el-card shadow="hover">
+                                    <div style="display: flex; align-items: center; gap: 16px;">
+                                        <div class="stat-icon" style="background: #e6a23c;">💰</div>
+                                        <div>
+                                            <div class="stat-value">52.8亿</div>
+                                            <div class="stat-label">总投资额</div>
+                                        </div>
+                                    </div>
+                                </el-card>
+                            </el-col>
+                            <el-col :span="6">
+                                <el-card shadow="hover">
+                                    <div style="display: flex; align-items: center; gap: 16px;">
+                                        <div class="stat-icon" style="background: #f56c6c;">📊</div>
+                                        <div>
+                                            <div class="stat-value">18.5%</div>
+                                            <div class="stat-label">平均收益率</div>
+                                        </div>
+                                    </div>
+                                </el-card>
+                            </el-col>
+                        </el-row>
+                        
+                        <el-row :gutter="20" class="chart-row">
+                            <el-col :span="12">
+                                <el-card shadow="hover">
+                                    <template #header><span>项目阶段分布</span></template>
+                                    <div ref="stageChart" class="chart-container"></div>
+                                </el-card>
+                            </el-col>
+                            <el-col :span="12">
+                                <el-card shadow="hover">
+                                    <template #header><span>行业分布</span></template>
+                                    <div ref="industryChart" class="chart-container"></div>
+                                </el-card>
+                            </el-col>
+                        </el-row>
+                        
+                        <el-row :gutter="20">
+                            <el-col :span="16">
+                                <el-card shadow="hover">
+                                    <template #header><span>投资趋势</span></template>
+                                    <div ref="trendChart" class="chart-container"></div>
+                                </el-card>
+                            </el-col>
+                            <el-col :span="8">
+                                <el-card shadow="hover">
+                                    <template #header><span>风险分布</span></template>
+                                    <div ref="riskChart" class="chart-container"></div>
+                                </el-card>
+                            </el-col>
+                        </el-row>
+                    </div>
+
+                    <!-- 项目管理 -->
+                    <div v-if="activeMenu === 'projects'">
+                        <el-card shadow="hover">
+                            <template #header>
+                                <div class="card-header">
+                                    <span>项目管理</span>
+                                    <el-button type="primary" @click="showProjectDialog = true">
+                                        <el-icon><Plus /></el-icon>新建项目
+                                    </el-button>
+                                </div>
+                            </template>
+                            <div class="filter-bar">
+                                <el-input v-model="projectFilter.keyword" placeholder="搜索项目名称" clearable style="width: 200px" />
+                                <el-select v-model="projectFilter.stage" placeholder="项目阶段" clearable style="width: 120px">
+                                    <el-option label=" prospect" value="prospect" />
+                                    <el-option label="尽职调查" value="due_diligence" />
+                                    <el-option label="估值" value="valuation" />
+                                    <el-option label="已投资" value="invested" />
+                                </el-select>
+                                <el-button type="primary">查询</el-button>
+                            </div>
+                            <el-table :data="projects" style="width: 100%">
+                                <el-table-column prop="code" label="项目编号" width="120" />
+                                <el-table-column prop="name" label="项目名称" min-width="200">
+                                    <template #default="{ row }">
+                                        <el-link type="primary">{{ row.name }}</el-link>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="type" label="类型" width="100" />
+                                <el-table-column prop="industry" label="行业" width="120" />
+                                <el-table-column prop="stage" label="阶段" width="100">
+                                    <template #default="{ row }">
+                                        <el-tag :type="getStageType(row.stage)">{{ row.stage }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="amount" label="金额(万)" width="120" />
+                                <el-table-column prop="risk" label="风险" width="80">
+                                    <template #default="{ row }">
+                                        <el-tag :type="getRiskType(row.risk)">{{ row.risk }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="manager" label="负责人" width="100" />
+                                <el-table-column label="操作" width="150" fixed="right">
+                                    <template #default>
+                                        <el-button type="primary" link>查看</el-button>
+                                        <el-button type="primary" link>编辑</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </el-card>
+                    </div>
+
+                    <!-- 投前管理 -->
+                    <div v-if="activeMenu === 'pre-investment'">
+                        <el-tabs type="border-card">
+                            <el-tab-pane label="尽职调查">
+                                <el-card shadow="hover">
+                                    <template #header>
+                                        <div class="card-header">
+                                            <span>尽职调查管理</span>
+                                            <el-button type="primary">新建尽调报告</el-button>
+                                        </div>
+                                    </template>
+                                    <el-table :data="ddList" style="width: 100%">
+                                        <el-table-column prop="project" label="项目名称" width="200" />
+                                        <el-table-column prop="company" label="公司名称" width="150" />
+                                        <el-table-column prop="capital" label="注册资本(万)" width="120" />
+                                        <el-table-column prop="score" label="评分" width="80">
+                                            <template #default="{ row }">
+                                                <el-tag :type="row.score >= 80 ? 'success' : row.score >= 60 ? 'warning' : 'danger'">{{ row.score }}</el-tag>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column prop="status" label="状态" width="100">
+                                            <template #default="{ row }">
+                                                <el-tag>{{ row.status }}</el-tag>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column label="操作" width="120">
+                                            <template #default>
+                                                <el-button type="primary" link>查看</el-button>
+                                                <el-button type="primary" link>编辑</el-button>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                </el-card>
+                            </el-tab-pane>
+                            <el-tab-pane label="项目估值">
+                                <el-card shadow="hover">
+                                    <template #header>
+                                        <div class="card-header">
+                                            <span>估值分析</span>
+                                            <el-button type="primary">新建估值报告</el-button>
+                                        </div>
+                                    </template>
+                                    <el-table :data="valuationList" style="width: 100%">
+                                        <el-table-column prop="project" label="项目名称" width="200" />
+                                        <el-table-column prop="method" label="估值方法" width="120" />
+                                        <el-table-column prop="ev" label="企业价值(万)" width="130" />
+                                        <el-table-column prop="pe" label="PE" width="80" />
+                                        <el-table-column prop="pb" label="PB" width="80" />
+                                        <el-table-column prop="status" label="状态" width="100">
+                                            <template #default="{ row }">
+                                                <el-tag>{{ row.status }}</el-tag>
+                                            </template>
+                                        </el-table-column>
+                                    </el-table>
+                                </el-card>
+                            </el-tab-pane>
+                            <el-tab-pane label="投资决策">
+                                <el-card shadow="hover">
+                                    <template #header>
+                                        <div class="card-header">
+                                            <span>投资决策</span>
+                                            <el-button type="primary">新建决策</el-button>
+                                        </div>
+                                    </template>
+                                    <el-table :data="decisionList" style="width: 100%">
+                                        <el-table-column prop="project" label="项目名称" width="200" />
+                                        <el-table-column prop="decision" label="决策结果" width="100">
+                                            <template #default="{ row }">
+                                                <el-tag :type="row.decision === '通过' ? 'success' : row.decision === '拒绝' ? 'danger' : 'warning'">{{ row.decision }}</el-tag>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column prop="date" label="决策日期" width="120" />
+                                        <el-table-column prop="maker" label="决策人" width="100" />
+                                        <el-table-column prop="comments" label="备注" min-width="200" />
+                                    </el-table>
+                                </el-card>
+                            </el-tab-pane>
+                        </el-tabs>
+                    </div>
+
+                    <!-- 投后管理 -->
+                    <div v-if="activeMenu === 'post-investment'">
+                        <el-card shadow="hover">
+                            <template #header>
+                                <div class="card-header">
+                                    <span>投后管理</span>
+                                    <el-button type="primary">新建投后报告</el-button>
+                                </div>
+                            </template>
+                            <el-table :data="postInvestmentList" style="width: 100%">
+                                <el-table-column prop="project" label="项目名称" width="200" />
+                                <el-table-column prop="type" label="报告类型" width="100" />
+                                <el-table-column prop="date" label="报告日期" width="120" />
+                                <el-table-column prop="revenue" label="收入(万)" width="120" />
+                                <el-table-column prop="profit" label="利润(万)" width="120" />
+                                <el-table-column prop="return" label="收益率" width="100">
+                                    <template #default="{ row }">
+                                        <span :class="row.return >= 0 ? 'up' : 'down'">{{ row.return }}%</span>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="risk" label="风险等级" width="100">
+                                    <template #default="{ row }">
+                                        <el-tag :type="getRiskType(row.risk)">{{ row.risk }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column label="操作" width="150">
+                                    <template #default>
+                                        <el-button type="primary" link>查看</el-button>
+                                        <el-button type="primary" link>AI分析</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </el-card>
+                    </div>
+
+                    <!-- 市场信息 -->
+                    <div v-if="activeMenu === 'market'">
+                        <el-tabs type="border-card">
+                            <el-tab-pane label="市场概览">
+                                <el-row :gutter="20">
+                                    <el-col :span="16">
+                                        <el-card shadow="hover">
+                                            <template #header><span>主要指数</span></template>
+                                            <div ref="indexChart" class="chart-container"></div>
+                                        </el-card>
+                                    </el-col>
+                                    <el-col :span="8">
+                                        <el-card shadow="hover">
+                                            <template #header><span>市场概况</span></template>
+                                            <div v-for="item in marketIndices" :key="item.name" class="market-item">
+                                                <span>{{ item.name }}</span>
+                                                <span :class="item.change >= 0 ? 'up' : 'down'">
+                                                    {{ item.value }} ({{ item.change >= 0 ? '+' : '' }}{{ item.change }}%)
+                                                </span>
+                                            </div>
+                                        </el-card>
+                                    </el-col>
+                                </el-row>
+                            </el-tab-pane>
+                            <el-tab-pane label="股票行情">
+                                <el-card shadow="hover">
+                                    <div class="filter-bar">
+                                        <el-input placeholder="搜索股票代码/名称" clearable style="width: 200px" />
+                                        <el-button type="primary">查询</el-button>
+                                    </div>
+                                    <el-table :data="stockList" style="width: 100%">
+                                        <el-table-column prop="code" label="代码" width="100" />
+                                        <el-table-column prop="name" label="名称" width="120" />
+                                        <el-table-column prop="price" label="现价" width="100" />
+                                        <el-table-column prop="change" label="涨跌幅" width="100">
+                                            <template #default="{ row }">
+                                                <span :class="row.change >= 0 ? 'up' : 'down'">{{ row.change >= 0 ? '+' : '' }}{{ row.change }}%</span>
+                                            </template>
+                                        </el-table-column>
+                                        <el-table-column prop="volume" label="成交量(手)" width="120" />
+                                        <el-table-column prop="pe" label="市盈率" width="100" />
+                                    </el-table>
+                                </el-card>
+                            </el-tab-pane>
+                        </el-tabs>
+                    </div>
+
+                    <!-- Wind数据 -->
+                    <div v-if="activeMenu === 'wind-data'">
+                        <el-card shadow="hover">
+                            <template #header>
+                                <div class="card-header">
+                                    <span>Wind数据查询</span>
+                                    <el-tag type="success">已连接</el-tag>
+                                </div>
+                            </template>
+                            <el-tabs>
+                                <el-tab-pane label="股票数据">
+                                    <el-form :inline="true" style="margin-bottom: 20px;">
+                                        <el-form-item label="股票代码">
+                                            <el-input v-model="windQuery.code" placeholder="如: 600519.SH" style="width: 200px" />
+                                        </el-form-item>
+                                        <el-form-item label="开始日期">
+                                            <el-date-picker v-model="windQuery.startDate" type="date" placeholder="选择日期" />
+                                        </el-form-item>
+                                        <el-form-item label="结束日期">
+                                            <el-date-picker v-model="windQuery.endDate" type="date" placeholder="选择日期" />
+                                        </el-form-item>
+                                        <el-form-item>
+                                            <el-button type="primary" @click="queryWindData">查询</el-button>
+                                        </el-form-item>
+                                    </el-form>
+                                    <el-table :data="windData" style="width: 100%">
+                                        <el-table-column prop="date" label="日期" width="120" />
+                                        <el-table-column prop="open" label="开盘价" width="100" />
+                                        <el-table-column prop="close" label="收盘价" width="100" />
+                                        <el-table-column prop="high" label="最高价" width="100" />
+                                        <el-table-column prop="low" label="最低价" width="100" />
+                                        <el-table-column prop="volume" label="成交量" width="120" />
+                                    </el-table>
+                                </el-tab-pane>
+                                <el-tab-pane label="证券搜索">
+                                    <el-form :inline="true" style="margin-bottom: 20px;">
+                                        <el-form-item label="关键词">
+                                            <el-input placeholder="输入证券名称/代码" style="width: 200px" />
+                                        </el-form-item>
+                                        <el-form-item>
+                                            <el-button type="primary">搜索</el-button>
+                                        </el-form-item>
+                                    </el-form>
+                                </el-tab-pane>
+                            </el-tabs>
+                        </el-card>
+                    </div>
+
+                    <!-- AI助手 -->
+                    <div v-if="activeMenu === 'ai-assistant'">
+                        <el-row :gutter="20">
+                            <el-col :span="6">
+                                <el-card shadow="hover">
+                                    <template #header>
+                                        <div class="card-header">
+                                            <span>会话列表</span>
+                                            <el-button type="primary" size="small">新建</el-button>
+                                        </div>
+                                    </template>
+                                    <div v-for="session in aiSessions" :key="session.id" 
+                                         style="padding: 12px; cursor: pointer; border-radius: 4px; margin-bottom: 8px;"
+                                         :style="{ background: session.id === currentSession ? '#ecf5ff' : '' }"
+                                         @click="currentSession = session.id">
+                                        {{ session.name }}
+                                    </div>
+                                </el-card>
+                            </el-col>
+                            <el-col :span="18">
+                                <el-card shadow="hover">
+                                    <template #header>
+                                        <div class="card-header">
+                                            <span>AI投资助手</span>
+                                            <el-tag type="success">在线</el-tag>
+                                        </div>
+                                    </template>
+                                    <div class="chat-messages">
+                                        <div v-for="(msg, index) in chatMessages" :key="index" 
+                                             class="message" :class="msg.role">
+                                            <div class="message-content">
+                                                <div class="message-text">{{ msg.content }}</div>
+                                                <div class="message-time">{{ msg.time }}</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 12px;">
+                                        <el-input v-model="chatInput" type="textarea" :rows="2" placeholder="输入您的问题..." />
+                                        <el-button type="primary" @click="sendChat" :loading="aiLoading">发送</el-button>
+                                    </div>
+                                </el-card>
+                            </el-col>
+                        </el-row>
+                    </div>
+
+                    <!-- 用户管理 -->
+                    <div v-if="activeMenu === 'users'">
+                        <el-card shadow="hover">
+                            <template #header>
+                                <div class="card-header">
+                                    <span>用户管理</span>
+                                    <el-button type="primary">新建用户</el-button>
+                                </div>
+                            </template>
+                            <el-table :data="userList" style="width: 100%">
+                                <el-table-column prop="username" label="用户名" width="120" />
+                                <el-table-column prop="realName" label="姓名" width="100" />
+                                <el-table-column prop="email" label="邮箱" width="180" />
+                                <el-table-column prop="role" label="角色" width="100">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.role === '管理员' ? 'danger' : row.role === '经理' ? 'warning' : ''">{{ row.role }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="status" label="状态" width="100">
+                                    <template #default="{ row }">
+                                        <el-tag :type="row.status === '活跃' ? 'success' : 'info'">{{ row.status }}</el-tag>
+                                    </template>
+                                </el-table-column>
+                                <el-table-column prop="lastLogin" label="最后登录" width="180" />
+                                <el-table-column label="操作" width="200">
+                                    <template #default>
+                                        <el-button type="primary" link>编辑</el-button>
+                                        <el-button type="primary" link>重置密码</el-button>
+                                        <el-button type="danger" link>禁用</el-button>
+                                    </template>
+                                </el-table-column>
+                            </el-table>
+                        </el-card>
+                    </div>
+                </el-main>
+            </el-container>
+        </el-container>
+
+        <!-- 新建项目对话框 -->
+        <el-dialog v-model="showProjectDialog" title="新建项目" width="600px">
+            <el-form :model="projectForm" label-width="100px">
+                <el-form-item label="项目名称">
+                    <el-input v-model="projectForm.name" placeholder="请输入项目名称" />
+                </el-form-item>
+                <el-form-item label="项目类型">
+                    <el-select v-model="projectForm.type" placeholder="请选择">
+                        <el-option label="股权投资" value="equity" />
+                        <el-option label="债权投资" value="debt" />
+                        <el-option label="混合投资" value="mixed" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="所属行业">
+                    <el-input v-model="projectForm.industry" placeholder="请输入行业" />
+                </el-form-item>
+                <el-form-item label="目标金额(万)">
+                    <el-input-number v-model="projectForm.amount" :min="0" style="width: 100%" />
+                </el-form-item>
+                <el-form-item label="风险等级">
+                    <el-select v-model="projectForm.risk" placeholder="请选择">
+                        <el-option label="低风险" value="low" />
+                        <el-option label="中风险" value="medium" />
+                        <el-option label="高风险" value="high" />
+                    </el-select>
+                </el-form-item>
+                <el-form-item label="项目描述">
+                    <el-input v-model="projectForm.desc" type="textarea" :rows="3" />
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="showProjectDialog = false">取消</el-button>
+                <el-button type="primary" @click="createProject">确定</el-button>
+            </template>
+        </el-dialog>
+    </div>
+
+    <script>
+        const { createApp, ref, reactive, computed, onMounted, nextTick, watch } = Vue;
+        
+        const app = createApp({
+            setup() {
+                const isLoggedIn = ref(false);
+                const loginLoading = ref(false);
+                const isCollapse = ref(false);
+                const activeMenu = ref('dashboard');
+                const showProjectDialog = ref(false);
+                const aiLoading = ref(false);
+                const currentSession = ref(1);
+                const chatInput = ref('');
+                
+                const loginForm = reactive({ username: 'admin', password: 'admin123' });
+                const userName = ref('系统管理员');
+                
+                const projectFilter = reactive({ keyword: '', stage: '' });
+                const windQuery = reactive({ code: '600519.SH', startDate: '', endDate: '' });
+                const projectForm = reactive({ name: '', type: '', industry: '', amount: 0, risk: '', desc: '' });
+                
+                const currentPageTitle = computed(() => {
+                    const titles = {
+                        'dashboard': '数据大屏',
+                        'projects': '项目管理',
+                        'pre-investment': '投前管理',
+                        'post-investment': '投后管理',
+                        'market': '市场信息',
+                        'wind-data': 'Wind数据',
+                        'ai-assistant': 'AI助手',
+                        'users': '用户管理'
+                    };
+                    return titles[activeMenu.value] || '';
+                });
+                
+                const projects = ref([
+                    { code: 'PRJ001', name: '新能源科技A轮投资', type: '股权投资', industry: '新能源', stage: '已投资', amount: 5000, risk: '中', manager: '张三' },
+                    { code: 'PRJ002', name: '生物医药B轮投资', type: '股权投资', industry: '生物医药', stage: '尽职调查', amount: 8000, risk: '高', manager: '李四' },
+                    { code: 'PRJ003', name: '人工智能天使轮', type: '股权投资', industry: '人工智能', stage: '估值', amount: 3000, risk: '中', manager: '王五' },
+                    { code: 'PRJ004', name: '消费升级Pre-IPO', type: '股权投资', industry: '消费', stage: ' prospect', amount: 15000, risk: '低', manager: '赵六' },
+                    { code: 'PRJ005', name: '半导体产业基金', type: '基金投资', industry: '半导体', stage: '已投资', amount: 20000, risk: '中', manager: '张三' }
+                ]);
+                
+                const ddList = ref([
+                    { project: '新能源科技A轮投资', company: '新能源科技有限公司', capital: 5000, score: 85, status: '已通过' },
+                    { project: '生物医药B轮投资', company: '生物医药有限公司', capital: 8000, score: 72, status: '审核中' },
+                    { project: '人工智能天使轮', company: '人工智能科技公司', capital: 3000, score: 90, status: '已通过' }
+                ]);
+                
+                const valuationList = ref([
+                    { project: '新能源科技A轮投资', method: 'DCF法', ev: 50000, pe: 25, pb: 3.5, status: '已批准' },
+                    { project: '人工智能天使轮', method: '可比公司法', ev: 30000, pe: 40, pb: 5.2, status: '草稿' }
+                ]);
+                
+                const decisionList = ref([
+                    { project: '新能源科技A轮投资', decision: '通过', date: '2024-01-15', maker: '投资委员会', comments: '同意投资5000万元' },
+                    { project: '生物医药B轮投资', decision: '有条件通过', date: '2024-01-20', maker: '投资委员会', comments: '需补充临床数据' },
+                    { project: '消费升级Pre-IPO', decision: '暂缓', date: '2024-02-01', maker: '投资委员会', comments: '等待市场时机' }
+                ]);
+                
+                const postInvestmentList = ref([
+                    { project: '新能源科技A轮投资', type: '季度报告', date: '2024-03-31', revenue: 5000, profit: 800, return: 16, risk: '低' },
+                    { project: '半导体产业基金', type: '月度报告', date: '2024-03-31', revenue: 12000, profit: 2500, return: 20.8, risk: '中' }
+                ]);
+                
+                const marketIndices = ref([
+                    { name: '上证指数', value: '3,200.50', change: 0.5 },
+                    { name: '深证成指', value: '10,800.20', change: -0.3 },
+                    { name: '创业板指', value: '2,150.80', change: 1.2 },
+                    { name: '科创50', value: '980.50', change: 0.8 },
+                    { name: '北证50', value: '850.30', change: -0.5 }
+                ]);
+                
+                const stockList = ref([
+                    { code: '600519', name: '贵州茅台', price: 1800.00, change: 1.5, volume: 12500, pe: 35 },
+                    { code: '000858', name: '五粮液', price: 180.50, change: 2.3, volume: 28000, pe: 28 },
+                    { code: '300750', name: '宁德时代', price: 450.20, change: 3.1, volume: 45000, pe: 45 },
+                    { code: '601318', name: '中国平安', price: 48.50, change: -0.8, volume: 35000, pe: 12 },
+                    { code: '000001', name: '平安银行', price: 12.30, change: 0.5, volume: 52000, pe: 8 }
+                ]);
+                
+                const windData = ref([
+                    { date: '2024-03-25', open: 1780, close: 1800, high: 1810, low: 1775, volume: 12500 },
+                    { date: '2024-03-26', open: 1800, close: 1820, high: 1825, low: 1795, volume: 15000 },
+                    { date: '2024-03-27', open: 1820, close: 1815, high: 1830, low: 1810, volume: 13500 },
+                    { date: '2024-03-28', open: 1815, close: 1835, high: 1840, low: 1812, volume: 18000 },
+                    { date: '2024-03-29', open: 1835, close: 1850, high: 1855, low: 1830, volume: 20000 }
+                ]);
+                
+                const aiSessions = ref([
+                    { id: 1, name: '新能源行业分析' },
+                    { id: 2, name: '项目估值讨论' },
+                    { id: 3, name: '市场趋势预测' }
+                ]);
+                
+                const chatMessages = ref([
+                    { role: 'user', content: '请分析一下新能源行业的投资前景', time: '10:30' },
+                    { role: 'assistant', content: '新能源行业是当前最具投资价值的赛道之一。从政策层面看，国家持续加大对新能源产业的支持力度；从市场层面看，新能源汽车、光伏、储能等细分领域都保持着高速增长。建议关注以下几个方向：\n\n1. 新能源汽车产业链，特别是电池和智能化领域\n2. 光伏产业链，关注N型电池技术迭代\n3. 储能行业，受益于电网改造和新能源并网需求\n\n风险方面需关注产能过剩、技术路线变化等因素。', time: '10:31' },
+                    { role: 'user', content: '有哪些具体的投资标的推荐？', time: '10:35' },
+                    { role: 'assistant', content: '基于当前市场分析，推荐关注以下标的：\n\n1. 宁德时代(300750) - 动力电池龙头，技术领先\n2. 比亚迪(002594) - 新能源汽车全产业链布局\n3. 隆基绿能(601012) - 光伏硅片龙头\n4. 阳光电源(300274) - 逆变器和储能系统\n\n建议采用分散投资策略，控制单一标的仓位不超过20%。', time: '10:36' }
+                ]);
+                
+                const userList = ref([
+                    { username: 'admin', realName: '系统管理员', email: 'admin@example.com', role: '管理员', status: '活跃', lastLogin: '2024-03-29 10:30:00' },
+                    { username: 'zhangsan', realName: '张三', email: 'zhangsan@example.com', role: '经理', status: '活跃', lastLogin: '2024-03-29 09:15:00' },
+                    { username: 'lisi', realName: '李四', email: 'lisi@example.com', role: '分析师', status: '活跃', lastLogin: '2024-03-28 16:45:00' },
+                    { username: 'wangwu', realName: '王五', email: 'wangwu@example.com', role: '查看者', status: '未激活', lastLogin: '-' }
+                ]);
+                
+                function handleLogin() {
+                    loginLoading.value = true;
+                    setTimeout(() => {
+                        isLoggedIn.value = true;
+                        loginLoading.value = false;
+                        ElMessage.success('登录成功');
+                        nextTick(() => {
+                            if (activeMenu.value === 'dashboard') {
+                                initCharts();
+                            }
+                        });
+                    }, 1000);
+                }
+                
+                function handleMenuSelect(index) {
+                    activeMenu.value = index;
+                    if (index === 'dashboard') {
+                        nextTick(() => initCharts());
+                    } else if (index === 'market') {
+                        nextTick(() => initMarketChart());
+                    }
+                }
+                
+                function handleCommand(command) {
+                    if (command === 'logout') {
+                        isLoggedIn.value = false;
+                        ElMessage.info('已退出登录');
+                    }
+                }
+                
+                function getStageType(stage) {
+                    const types = { ' prospect': 'info', '尽职调查': 'warning', '估值': '', '已投资': 'success' };
+                    return types[stage] || 'info';
+                }
+                
+                function getRiskType(risk) {
+                    const types = { '低': 'success', '中': 'warning', '高': 'danger' };
+                    return types[risk] || 'info';
+                }
+                
+                function queryWindData() {
+                    ElMessage.success('查询成功，获取到5条数据');
+                }
+                
+                function createProject() {
+                    showProjectDialog.value = false;
+                    ElMessage.success('项目创建成功');
+                }
+                
+                function sendChat() {
+                    if (!chatInput.value.trim()) return;
+                    
+                    const userMsg = chatInput.value;
+                    chatMessages.value.push({ role: 'user', content: userMsg, time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) });
+                    chatInput.value = '';
+                    aiLoading.value = true;
+                    
+                    setTimeout(() => {
+                        chatMessages.value.push({ 
+                            role: 'assistant', 
+                            content: '感谢您的提问。基于您的问题，我为您分析如下：\n\n1. 从宏观经济角度看，当前市场环境整体向好\n2. 建议关注政策导向和行业轮动机会\n3. 投资需谨慎，做好风险控制\n\n如需更详细的分析，请提供更多具体信息。',
+                            time: new Date().toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+                        });
+                        aiLoading.value = false;
+                    }, 1500);
+                }
+                
+                function initCharts() {
+                    // 项目阶段分布
+                    const stageChart = echarts.init(document.querySelector('[ref="stageChart"]'));
+                    stageChart.setOption({
+                        tooltip: { trigger: 'item' },
+                        series: [{
+                            type: 'pie',
+                            radius: '60%',
+                            data: [
+                                { value: 35, name: ' prospect' },
+                                { value: 25, name: '尽职调查' },
+                                { value: 20, name: '估值' },
+                                { value: 15, name: '已投资' },
+                                { value: 5, name: '已退出' }
+                            ]
+                        }]
+                    });
+                    
+                    // 行业分布
+                    const industryChart = echarts.init(document.querySelector('[ref="industryChart"]'));
+                    industryChart.setOption({
+                        tooltip: { trigger: 'item' },
+                        series: [{
+                            type: 'pie',
+                            radius: ['40%', '70%'],
+                            data: [
+                                { value: 35, name: '新能源' },
+                                { value: 25, name: '生物医药' },
+                                { value: 20, name: '人工智能' },
+                                { value: 15, name: '半导体' },
+                                { value: 5, name: '消费' }
+                            ]
+                        }]
+                    });
+                    
+                    // 投资趋势
+                    const trendChart = echarts.init(document.querySelector('[ref="trendChart"]'));
+                    trendChart.setOption({
+                        tooltip: { trigger: 'axis' },
+                        legend: { data: ['项目数量', '投资金额'] },
+                        xAxis: { type: 'category', data: ['1月', '2月', '3月', '4月', '5月', '6月'] },
+                        yAxis: [
+                            { type: 'value', name: '项目数量' },
+                            { type: 'value', name: '投资金额(万)' }
+                        ],
+                        series: [
+                            { name: '项目数量', type: 'bar', data: [12, 15, 18, 22, 25, 28] },
+                            { name: '投资金额', type: 'line', yAxisIndex: 1, data: [5000, 8000, 12000, 15000, 18000, 22000] }
+                        ]
+                    });
+                    
+                    // 风险分布
+                    const riskChart = echarts.init(document.querySelector('[ref="riskChart"]'));
+                    riskChart.setOption({
+                        tooltip: { trigger: 'item' },
+                        series: [{
+                            type: 'pie',
+                            data: [
+                                { value: 45, name: '低风险', itemStyle: { color: '#67c23a' } },
+                                { value: 35, name: '中风险', itemStyle: { color: '#e6a23c' } },
+                                { value: 20, name: '高风险', itemStyle: { color: '#f56c6c' } }
+                            ]
+                        }]
+                    });
+                    
+                    window.addEventListener('resize', () => {
+                        stageChart.resize();
+                        industryChart.resize();
+                        trendChart.resize();
+                        riskChart.resize();
+                    });
+                }
+                
+                function initMarketChart() {
+                    const indexChart = echarts.init(document.querySelector('[ref="indexChart"]'));
+                    indexChart.setOption({
+                        tooltip: { trigger: 'axis' },
+                        legend: { data: ['上证指数', '深证成指', '创业板指'] },
+                        xAxis: { type: 'category', data: ['09:30', '10:00', '10:30', '11:00', '11:30', '13:00', '13:30', '14:00', '14:30', '15:00'] },
+                        yAxis: { type: 'value' },
+                        series: [
+                            { name: '上证指数', type: 'line', data: [3200, 3210, 3205, 3215, 3220, 3218, 3225, 3230, 3228, 3200], smooth: true },
+                            { name: '深证成指', type: 'line', data: [10800, 10820, 10810, 10830, 10840, 10835, 10850, 10860, 10855, 10800], smooth: true },
+                            { name: '创业板指', type: 'line', data: [2150, 2160, 2155, 2170, 2175, 2172, 2180, 2185, 2182, 2150], smooth: true }
+                        ]
+                    });
+                    
+                    window.addEventListener('resize', () => indexChart.resize());
+                }
+                
+                return {
+                    isLoggedIn, loginLoading, isCollapse, activeMenu, showProjectDialog,
+                    aiLoading, currentSession, chatInput, loginForm, userName,
+                    projectFilter, windQuery, projectForm, currentPageTitle,
+                    projects, ddList, valuationList, decisionList, postInvestmentList,
+                    marketIndices, stockList, windData, aiSessions, chatMessages, userList,
+                    handleLogin, handleMenuSelect, handleCommand, getStageType, getRiskType,
+                    queryWindData, createProject, sendChat
+                };
+            }
+        });
+        
+        for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
+            app.component(key, component);
+        }
+        app.use(ElementPlus);
+        app.mount('#app');
+    </script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "app": {
+    "language": "zh-CN",
+    "theme": "light",
+    "auto_save": true
+  },
+  "data": {
+    "default_encoding": "gbk",
+    "default_separator": ",",
+    "date_format": "%Y-%m-%d",
+    "amount_format": "standard"
+  },
+  "export": {
+    "default_filename": "财务报表",
+    "include_charts": true,
+    "export_options": [
+      "原始数据",
+      "统计汇总"
+    ],
+    "vba_template": "标准财务报表模板.xlsm"
+  },
+  "column_mapping": {
+    "date": "",
+    "amount": "",
+    "category": "",
+    "department": ""
+  },
+  "display": {
+    "decimal_places": 2,
+    "show_percentage": true,
+    "chart_theme": "plotly"
+  }
+}
